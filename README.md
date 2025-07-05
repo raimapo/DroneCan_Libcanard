@@ -1,7 +1,7 @@
 # DroneCan_Libcanard
 Libcanard examples for STM32H7 and STM32G4
 
-$${\color{red}For \space future \space examples$$
+$${\color{red}For \space future \space examples}$$
 Generate dronecan_msgs.h for usage with examples
 ```
 python dronecan_dsdlc/dronecan_dsdlc.py -O generated DSDL/uavcan DSDL/dronecan DSDL/ardupilot
