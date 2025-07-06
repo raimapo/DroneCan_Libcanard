@@ -121,9 +121,6 @@ int main(void)
   // Start FDCAN
   HAL_FDCAN_Start(&hfdcan1);
 
-  // Activate RX FIFO0 message pending interrupt
-  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
-
   // Configure filter
   FDCAN_FilterTypeDef sFilterConfig;
   sFilterConfig.IdType = FDCAN_EXTENDED_ID;
@@ -330,22 +327,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
-	HAL_GPIO_TogglePin(GPIOE, GPIO_PIN_0);
-    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != 0) {
-        FDCAN_RxHeaderTypeDef rx_header;
-        uint8_t rx_data[8];
-        HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rx_header, rx_data);
 
-        CanardCANFrame rx_frame = {
-            .id = rx_header.Identifier,
-            .data = {0},
-            .data_len = 8
-        };
-        memcpy(rx_frame.data, rx_data, 8);
-        canardHandleRxFrame(&canard, &rx_frame, HAL_GetTick() * 1000);
-    }
-}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

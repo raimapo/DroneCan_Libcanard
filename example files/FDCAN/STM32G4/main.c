@@ -22,13 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <string.h>              // for memcpy
-#include <stdio.h>
-#include <time.h>
-#include "canard.h"
-#include <assert.h>
-#include <errno.h>
-#include <stdbool.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -73,11 +67,18 @@ void StartDefaultTask(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-/*
-  libcanard library instance and a memory pool for it to use
- */
-static CanardInstance canard;
-static uint8_t canard_memory_pool[1024]; // Adjust size as needed
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
+{
+    FDCAN_RxHeaderTypeDef rxHeader;
+    uint8_t rxData[8];
+
+    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != 0)
+    {
+        HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, rxData);
+        // For example, toggle LED on message
+        HAL_GPIO_TogglePin(GPIOB, GREEN_LED_Pin);
+    }
+}
 
 /* USER CODE END 0 */
 
@@ -115,6 +116,14 @@ int main(void)
 
   // Start FDCAN
   HAL_FDCAN_Start(&hfdcan1);
+
+  // Activate RX FIFO0 message pending interrupt
+  HAL_FDCAN_ActivateNotification(&hfdcan1,
+      FDCAN_IT_RX_FIFO0_NEW_MESSAGE |
+      FDCAN_IT_RX_FIFO0_FULL |
+      FDCAN_IT_RX_FIFO0_MESSAGE_LOST,
+      0);
+
 
   // Configure filter
   FDCAN_FilterTypeDef sFilterConfig;
@@ -310,66 +319,27 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-	canardInit(&canard,
-			canard_memory_pool,
-			sizeof(canard_memory_pool),
-			NULL,
-			NULL,
-			NULL
-	);
 
-	/*
-	in this simple example we will use a fixed CAN node ID. This would
-	need to be a parameter or use dynamic node allocation in a real
-	application
-	*/
-	canard.node_id = 42; // Set your node ID
+	FDCAN_TxHeaderTypeDef TxHeader;
+	uint8_t TxData[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
 
-	static uint8_t transfer_id = 	0;
+	TxHeader.Identifier = 0x123;
+	TxHeader.IdType = FDCAN_STANDARD_ID;
+	TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+	TxHeader.DataLength = FDCAN_DLC_BYTES_8;
+	TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+	TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+	TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+	TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+	TxHeader.MessageMarker = 0;
 
-	/* Infinite loop */
-	for(;;)
-	{
-		// Create a dummy payload
-		uint8_t payload[] = {0xAA, 0xBB, 0xCC};
+	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData);
 
-		// Create a transfer
-		const int16_t result = canardBroadcast(
-				&canard,
-				0x123456789ABCDEF0ULL, // data_type_signature (use correct one for your message
-				1234, // Subject-ID (port ID)
-				&transfer_id, // pointer to transfer
-				0, // priority (0 = nominal
-				payload, // pointer to payload
-				  sizeof(payload) // payload
-		  );
-		  if (result < 0)
-		  {
-			  // Handle error (e.g., out of memory)
-		  }
-
-		  // Peek and send via FDCAN
-		  CanardCANFrame* tx_frame = NULL;
-		  while ((tx_frame = canardPeekTxQueue(&canard)) != NULL)
-		  {
-		      FDCAN_TxHeaderTypeDef tx_header;
-		      tx_header.Identifier = tx_frame->id;
-		      tx_header.IdType = FDCAN_EXTENDED_ID;
-		      tx_header.TxFrameType = FDCAN_DATA_FRAME;
-		      tx_header.DataLength = FDCAN_DLC_BYTES_8;
-		      tx_header.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-		      tx_header.BitRateSwitch = FDCAN_BRS_OFF;
-		      tx_header.FDFormat = FDCAN_CLASSIC_CAN;
-		      tx_header.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
-		      tx_header.MessageMarker = 0;
-
-		      HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &tx_header, tx_frame->data);
-
-		      canardPopTxQueue(&canard);
-		  }
-
-		  osDelay(500); // Send every second
-
+	  /* Infinite loop */
+	  for(;;)
+	  {
+		    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData);
+		    osDelay(1000);
 	  }
   /* USER CODE END 5 */
 }
@@ -407,6 +377,8 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_2);
+	osDelay(1000);
   }
   /* USER CODE END Error_Handler_Debug */
 }
